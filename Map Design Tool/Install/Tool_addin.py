@@ -2,32 +2,28 @@ import os
 import sys
 import arcpy
 from arcpy import env
-def do_analysis(*argv):
-    """TODO: Add documentation about this function here"""
-    try:
-        #TODO: Add analysis here
-        pass
-    except arcpy.ExecuteError:
-        print arcpy.GetMessages(2)
-    except Exception as e:
-        print e.args[0]
-# End do_analysis function
- 
-# This test allows the script to be used from the operating
-# system command prompt (stand-alone), in a Python IDE, 
-# as a geoprocessing script tool, or as a module imported in
-# another script
-if __name__ == '__main__':
-    # Arguments are optional
-    argv = tuple(arcpy.GetParameterAsText(i)
-        for i in range(arcpy.GetArgumentCount()))
-    do_analysis(*argv)
-
+import pythonaddins
+with pythonaddins.ProgressDialog as dialog:
+    dialog.title = "Progress Dialog"
+    dialog.description = "Copying a large feature class."
+    dialog.animation = "File"
+    for i in xrange(100):
+        dialog.progress = i
+        if dialog.cancelled:
+            raise Exception("Ooops")
 
 print "Welcome to Map Design Tool!"
-print "To start, please import a txt file using ArcMap's import functionality..."
-print "Once you have uploaded, click on the gear button to design your map!"
-global NameofTable
+print "To start, please click on the button"
+
+class MyValidator(object):
+    def __str__(self):
+        return "Text files(*.txt)"
+    def __call__(self, filename):
+        if os.path.isfile(filename) and filename.lower().endswith(".txt"):
+            return True
+        return False
+
+
 
 class btnDesign(object):
     """Implementation for Tool_addin.button5 (Button)"""
@@ -35,26 +31,36 @@ class btnDesign(object):
         self.enabled = True
         self.checked = False
     def onClick(self):
-        # Moving views to Layout view
-        mxd = arcpy.mapping.MapDocument("current")
-        
-        #Setting workspace and author
-        arcpy.env.workspace = r"C:\Temp\\"
-        mxd.author = "GIS Department"
-        df = arcpy.mapping.ListDataFrames(mxd,"Layers")[0]
-        for table in arcpy.mapping.ListTableViews(mxd):
-            print "Table Name: " + table.name
-            NameofTable = table.name
-        
-        if NameofTable == "":
-            print "Please import data using the ArcMap import functionality!"
-        
-        else:
+        pythonaddins.MessageBox("Please import a textfile (txt) that satisfies the requirements of this tool...", "Welcome to Map Design Tool", 0)
+        layer_files = pythonaddins.OpenDialog("Select a txt file",r"c:\files", filter=MyValidator())
+                 
+        try:
+            
+            # Moving views to Layout view
+            mxd = arcpy.mapping.MapDocument("current")
+            
+            #Setting workspace and author
+            arcpy.env.workspace = r"C:\Temp\\"
+            mxd.author = "GIS Department"
+                
+            df = arcpy.mapping.ListDataFrames(mxd,"Layers")[0]
+            if not isinstance(df, arcpy.mapping.Layer):
+                for layer_file in layer_files:
+                    layer = arcpy.mapping.TableView(layer_file)
+                    arcpy.mapping.AddTableView(df, layer)
+            else:
+                pythonaddins.MessageBox('Select a data frame', 'INFO', 0)
+            
+            for table in arcpy.mapping.ListTableViews(mxd):
+                NameofTable = table.name
+            
+            
         
             #Adding in basemap rom instal folder
             path_to_layer = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'OSM.lyr')
-            addLayer = arcpy.mapping.Layer(path_to_layer)  
-            arcpy.mapping.AddLayer(df, addLayer, "BOTTOM") 
+            
+            addBase = arcpy.mapping.Layer(path_to_layer)  
+            arcpy.mapping.AddLayer(df, addBase, "BOTTOM") 
             arcpy.mapping.MapDocument("current").activeView = "PAGE_LAYOUT"
             
             
@@ -95,7 +101,8 @@ class btnDesign(object):
             
             
             del mxd
-        
+        except Exception as err:
+                pythonaddins.MessageBox("No textfile was imported, or the format of the textfile is incorrect!","Error")
         pass
 
 class btnHelp(object):
@@ -104,5 +111,5 @@ class btnHelp(object):
         self.enabled = True
         self.checked = False
     def onClick(self):
-
+        pythonaddins.MessageBox("Welcome to the Help section","Help")
         pass
