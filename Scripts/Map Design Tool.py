@@ -12,13 +12,13 @@ import os,sys,arcpy, pythonaddins
 from arcpy import env
 
 #   --Set Parameters--
-# Name of input text file
+# Path name of input text file
 ParmInTxt = arcpy.GetParameterAsText(0) 
-# Name of map
+# Name of map title
 ParmMapName = arcpy.GetParameterAsText(1)
 # Name of Points
 ParmPointsName = arcpy.GetParameterAsText(2)
-# Type of Basemap
+# Type of Base map
 ParmBaseMapInfo = arcpy.GetParameterAsText(3)
 #Projection
 ParmProjection = arcpy.GetParameterAsText(4)
@@ -32,7 +32,7 @@ arcpy.AddMessage("Designing your map has begun...")
 #   --
 
 try:
-    #   --Get mxd--
+    #   --Get map document--
     mxd = arcpy.mapping.MapDocument("current")
 
     #   --Setting workspace and author--
@@ -61,13 +61,6 @@ try:
     addBase = arcpy.mapping.Layer(path_to_layer)
     arcpy.mapping.AddLayer(df, addBase, "BOTTOM")
 
-    #   --Setting variables--
-    in_Table = ParmInTxt
-    x_coords = "Long(x)"
-    y_coords = "Lat(y)"
-    z_coords = ""
-    out_Layer = ParmPointsName
-
     #   --Save layer into root folder--
     saved_Layer = os.path.join(os.path.dirname(os.path.abspath(__file__)), ParmSaveLayerName)
 
@@ -87,7 +80,7 @@ try:
     elif ParmProjection == "Greenland":
         WKID = 4747
     elif ParmProjection == "North America":
-        WKID = 37260
+        WKID = 4717
     elif ParmProjection == "North Eastern Africa":
         WKID = 4201
     elif ParmProjection == "North Western Africa":
@@ -108,6 +101,13 @@ try:
     sr.factoryCode = WKID
     sr.create()
     env.outputCoordinateSystem = sr
+
+    #   --Setting variables--
+    in_Table = ParmInTxt
+    x_coords = "Long(x)"
+    y_coords = "Lat(y)"
+    z_coords = ""
+    out_Layer = ParmPointsName
 
     #   --Make the XY event layer--
     arcpy.MakeXYEventLayer_management(in_Table, x_coords, y_coords, out_Layer,sr, z_coords)
