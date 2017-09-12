@@ -11,6 +11,7 @@
 #-------------------------------------------------------------------------------
 import os,sys,arcpy, pythonaddins, datetime, arcgisscripting, string
 from arcpy import env
+from arcpy.sa import *
 
 i = datetime.datetime.now()
 MyDate = "%s%s_%s%s%s_" % (i.hour, i.minute, i.day, i.month, i.year) 
@@ -18,22 +19,20 @@ MyDate = "%s%s_%s%s%s_" % (i.hour, i.minute, i.day, i.month, i.year)
 #   --Set Parameters--
 # Path name of input csv file
 ParmInTxt = arcpy.GetParameterAsText(0) 
-# Name of map title
+# Name of map title (Such as "Risks and hazards in South Africa")
 ParmMapName = arcpy.GetParameterAsText(1)
-# Name of Points
+# Name of Points to be mapped (Such as "Seismic Events")
 ParmPointsName = arcpy.GetParameterAsText(2)
-# Type of Base map
+# Type of Base map (Such as "Open Street Map")
 ParmBaseMapInfo = arcpy.GetParameterAsText(3)
-#Projection
+#Projection ("Asks user what area they are mapping in, to apply correct projection")
 ParmProjection = arcpy.GetParameterAsText(4)
-#Interpolation
+#Interpolation ("Yes" or "No")
 ParmInterpolation = arcpy.GetParameterAsText(5)
-#Styling
-ParmStyling = arcpy.GetParameterAsText(6)
-# Credit Info
-ParmCredits = arcpy.GetParameterAsText(7)
-# Name of Saved Layer
-ParmSaveLayerName = MyDate + arcpy.GetParameterAsText(8) + ".lyr"
+# Author Info (Such as "Amy Wootton")
+ParmCredits = arcpy.GetParameterAsText(6)
+# Name of Saved Layer (Such as "My New Map")
+ParmSaveLayerName = MyDate + arcpy.GetParameterAsText(7) + ".lyr"
 
 arcpy.env.overwriteOutput =  True
 
@@ -52,6 +51,10 @@ try:
     #   --List data frames--
     df = arcpy.mapping.ListDataFrames(mxd,"Layers")[0]
 
+    for df in arcpy.mapping.ListDataFrames(mxd):
+    		for lyr in arcpy.mapping.ListLayers(mxd, "", df):
+           		arcpy.mapping.RemoveLayer(df, lyr)
+
     #   --Defining types of basemaps--
     if ParmBaseMapInfo == "Open Street Map":
         BaseMap = "BaseMap3 (DO NOT DELETE).lyr"
@@ -59,7 +62,7 @@ try:
         BaseMap = "BaseMap4 (DO NOT DELETE).lyr"
     elif ParmBaseMapInfo == "Aerial Image (without labels)":
         BaseMap = "BaseMap1 (DO NOT DELETE).lyr"
-    elif ParmBaseMapInfo == "National Geopgraphic":
+    elif ParmBaseMapInfo == "National Geographic":
         BaseMap = "BaseMap2 (DO NOT DELETE).lyr"
     elif ParmBaseMapInfo == "None":
     	BaseMap = "None"
@@ -135,7 +138,7 @@ try:
     arcpy.mapping.AddLayer(df,addPoints,"AUTO_ARRANGE")
 
     #   --Setting extent of map--
-    lyr = arcpy.mapping.ListLayers(mxd, '**', df)[0]
+    lyr = arcpy.mapping.ListLayers(mxd, addPoints, df)[0]
     ext = lyr.getExtent()
     df.extent = ext
     
@@ -157,55 +160,47 @@ try:
     #	--Interpolation--
 
     if ParmInterpolation == "Yes":
-    	gp = arcgisscripting.create() #geoprocessor object create
     	# Check out any necessary licenses
-    	gp.checkoutextension("Spatial")
-    	# Set the input feature dataset
-    	inputFeatureDataset = addPoints
-    	attributeName = QuantifyName
-    	# Set the output raster name
-    	outputRaster = "C:/data/final_1"
-    	# Define the semivariogram
-    	Model = "Spherical"         #(Remember the space at the end)
-    	LagSize = "0.4496 "          #(Remember the space at the end)
-    	MajorRange = "2.6185 "       #(Remember the space at the end)
-    	PartialSill = "542.65 "      #(Remember the space at the end)
-    	Nugget = "0"
-    	Semivariogram = LagSize + MajorRange + PartialSill + Nugget
-    	# Don't write out the variance raster
-    	Output_variance_of_prediction_raster = ""
-    	gp.Kriging_sa(inputFeatureDataset, attributeName, outputRaster, Model, Semivariogram, "1", "VARIABLE 12", Output_variance_of_prediction_raster)
-    	arcpy.AddMessage("Completed IDW")
+    	arcpy.CheckOutExtension("Spatial")
+    	#Set local variables
+    	inPointFeatures = addPoints
+    	zField = QuantifyName
+    	power = 2
+    	#searchRadius = RadiusVariable(12, 0) # second variable left to default
+    	# Execute IDW
+    	outIDW = Idw(inPointFeatures, zField, power=power, search_radius=RadiusVariable(12))
+    	arcpy.AddMessage("Calculated IDW")
+    	
+    	# Save the output 
+    	outIDW.save("C:/Temp/Int" + ParmPointsName) 
+    	arcpy.AddMessage("Saved IDW layer")
+    	newlayer = arcpy.mapping.Layer("Int" + ParmPointsName)
+    	arcpy.mapping.AddLayer(df,newlayer,"AUTO_ARRANGE")
+    	arcpy.AddMessage("Added in IDW layer")
 
-    	# Method 1
-    	#arcpy.InterpolateFromPointCloud_management(addPoints, 'C:/data/dsm.crf', '10','IDW', 'GAUSS5x5', 'DSM')
+    	for df in arcpy.mapping.ListDataFrames(mxd):
+    		for lyr in arcpy.mapping.ListLayers(mxd, "", df):
+        		if lyr.name == ParmPointsName:
+           			arcpy.mapping.RemoveLayer(df, lyr)
 
-    	# Method 2
-    	# Inter = "Yes"
-    	# inPoints = addPoints
-    	# inField = QuantifyName
-    	# outRaster = 'outImgServ'
-    	# optimizeFor = 'SPEED'
-    	# transform = 'False'
-    	# subsetSize = 50
-    	# numNeighbors = 8
-    	# outCellSize = '10000 Meters'
-    	# error = 'NO_OUTPUT_ERROR'
-    	# arcpy.InterpolatePoints_ra(inPoints, inField, outRaster, optimizeFor, transform, subsetSize, numNeighbors, outCellSize, error)
+        arcpy.AddMessage("Adding in Base Map for Interpolation...")
+    	path_to_citylayer = os.path.join(os.path.dirname(os.path.abspath(__file__)), "Cities.shp")
+    	addCityInfo = arcpy.mapping.Layer(path_to_citylayer)
+    	arcpy.mapping.AddLayer(df, addCityInfo, "TOP")
+    	addCityInfo.showLabels = True
+
+    	path_to_polylayer = os.path.join(os.path.dirname(os.path.abspath(__file__)), "Countries.shp")
+    	addPolyInfo = arcpy.mapping.Layer(path_to_polylayer)
+    	arcpy.mapping.AddLayer(df, addPolyInfo, "AUTO_ARRANGE")
+
+    	legend = arcpy.mapping.ListLayoutElements(mxd, "LEGEND_ELEMENT", "Legend")[0]
+    	legend.autoAdd = True
+    	legend.adjustColumnCount(4)
 
     elif ParmInterpolation == "No":
-    	Inter = "No"
+    	arcpy.AddMessage("Interpolation not selected")
     else:
     	arcpy.AddMessage("Interpolation failed")
-
-
-    #	--Styling--
-    if ParmStyling == "Yes":
-    	Style = "Yes"
-    elif ParmStyling == "No":
-    	Style = "No"
-    else:
-    	arcpy.AddMessage("Styling failed")
 
     #   --Change to Layout view--
     arcpy.mapping.MapDocument("current").activeView = "PAGE_LAYOUT"
