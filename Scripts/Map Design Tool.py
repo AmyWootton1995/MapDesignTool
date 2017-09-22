@@ -130,7 +130,8 @@ try:
     #   --Make the XY event layer--
     arcpy.MakeXYEventLayer_management(in_Table, x_coords, y_coords, out_Layer,sr, z_coords)
 
-    #   --Save layer and add saved layer to current map--
+
+	#   --Save layer and add saved layer to current map--
     arcpy.SaveToLayerFile_management(out_Layer,saved_Layer)
     arcpy.AddMessage('Adding your map layer...')
     path_to_layer = os.path.join(os.path.dirname(os.path.abspath(__file__)), ParmSaveLayerName)
@@ -157,6 +158,15 @@ try:
     QuantifyName = field_names[count - 2]
     arcpy.AddMessage(QuantifyName) 
 
+    # Set layer that output symbology will be based on
+    path_to_Polysymbologylayer = os.path.join(os.path.dirname(os.path.abspath(__file__)), "Symbology_Layer_Polygon.lyr")
+    symbologyPolygonLayer = arcpy.mapping.Layer(path_to_Polysymbologylayer)
+    path_to_Pointsymbologylayer = os.path.join(os.path.dirname(os.path.abspath(__file__)), "Symbology_Layer_Point.lyr")
+    symbologyPointLayer = arcpy.mapping.Layer(path_to_Pointsymbologylayer)
+    #	--Setting symbology for raster layers--
+    path_to_Rastersymbologylayer = os.path.join(os.path.dirname(os.path.abspath(__file__)), "Symbology_Layer_Raster.lyr")
+    symbologyRasterLayer = arcpy.mapping.Layer(path_to_Rastersymbologylayer)
+
     #	--Interpolation--
 
     if ParmInterpolation == "Yes":
@@ -172,9 +182,11 @@ try:
     	arcpy.AddMessage("Calculated IDW")
     	
     	# Save the output 
-    	outIDW.save("C:/Temp/Int" + ParmPointsName) 
+    	outIDW.save("C:/Temp/Int" + ParmPointsName)
     	arcpy.AddMessage("Saved IDW layer")
-    	newlayer = arcpy.mapping.Layer("Int" + ParmPointsName)
+    	newlayer = arcpy.mapping.Layer(r"C:\Temp\Int" + ParmPointsName)
+    	#	--Applying symbology to the layer--
+    	arcpy.ApplySymbologyFromLayer_management (newlayer, symbologyRasterLayer)
     	arcpy.mapping.AddLayer(df,newlayer,"AUTO_ARRANGE")
     	arcpy.AddMessage("Added in IDW layer")
 
@@ -186,11 +198,15 @@ try:
         arcpy.AddMessage("Adding in Base Map for Interpolation...")
     	path_to_citylayer = os.path.join(os.path.dirname(os.path.abspath(__file__)), "Cities.shp")
     	addCityInfo = arcpy.mapping.Layer(path_to_citylayer)
+    	# Apply the symbology from the symbology layer to the input layer
+    	arcpy.ApplySymbologyFromLayer_management (addCityInfo, symbologyPointLayer)
     	arcpy.mapping.AddLayer(df, addCityInfo, "TOP")
     	addCityInfo.showLabels = True
 
     	path_to_polylayer = os.path.join(os.path.dirname(os.path.abspath(__file__)), "Countries.shp")
     	addPolyInfo = arcpy.mapping.Layer(path_to_polylayer)
+    	# Apply the symbology from the symbology layer to the input layer
+    	arcpy.ApplySymbologyFromLayer_management (addPolyInfo, symbologyPolygonLayer)
     	arcpy.mapping.AddLayer(df, addPolyInfo, "AUTO_ARRANGE")
 
     	legend = arcpy.mapping.ListLayoutElements(mxd, "LEGEND_ELEMENT", "Legend")[0]
