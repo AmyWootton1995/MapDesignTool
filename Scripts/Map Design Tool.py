@@ -2,38 +2,41 @@
 # Name:        Map Design Tool
 # Purpose:     BSc (Hons) Geoinformatics Project
 #
-# Author:      Amy Wootton, tferreira
+# Author:      Amy Wootton
 #
 # Created:     24/08/2017
 
 # Copyright:   (c) Amy Wootton 2017
-# Licence:     University of Pretoria
+# License:     University of Pretoria
 #-------------------------------------------------------------------------------
-import os,sys,arcpy, pythonaddins, datetime, arcgisscripting, string
+#	--Importing required modules--
+import os,sys,arcpy, datetime, string 
 from arcpy import env
 from arcpy.sa import *
 
+#	--Getting the time of day, and date for today--
 i = datetime.datetime.now()
 MyDate = "%s%s_%s%s%s_" % (i.hour, i.minute, i.day, i.month, i.year) 
 
 #   --Set Parameters--
-# Path name of input csv file
+#	--Path name of input csv file--
 ParmInTxt = arcpy.GetParameterAsText(0) 
-# Name of map title (Such as "Risks and hazards in South Africa")
+#	--Name of map title (Such as "Risks and hazards in South Africa")--
 ParmMapName = arcpy.GetParameterAsText(1)
-# Name of Points to be mapped (Such as "Seismic Events")
+#	--Name of Points to be mapped (Such as "Seismic Events")--
 ParmPointsName = arcpy.GetParameterAsText(2)
-# Type of Base map (Such as "Open Street Map")
+#	--Type of Base map (Such as "Open Street Map")--
 ParmBaseMapInfo = arcpy.GetParameterAsText(3)
-#Projection ("Asks user what area they are mapping in, to apply correct projection")
+#	--Projection ("Asks user what area they are mapping in, to apply the correct projection")--
 ParmProjection = arcpy.GetParameterAsText(4)
-#Interpolation ("Yes" or "No")
+#	--Interpolation ("Yes" or "No")--
 ParmInterpolation = arcpy.GetParameterAsText(5)
-# Author Info (Such as "Amy Wootton")
+#	--Author Info (Such as "Amy Wootton")--
 ParmCredits = arcpy.GetParameterAsText(6)
-# Name of Saved Layer (Such as "My New Map")
+#	--Name of Saved Layer (Such as "My New Map")--
 ParmSaveLayerName = MyDate + arcpy.GetParameterAsText(7) + ".lyr"
 
+#	--Setting the overwriting capabilities to allow the user to run the tool multiple times--
 arcpy.env.overwriteOutput =  True
 
 #   --
@@ -44,13 +47,17 @@ try:
     #   --Get map document--
     mxd = arcpy.mapping.MapDocument("current")
 
+    #	--Create new folder for the workspace--
+    arcpy.CreateFolder_management("C:/", "Temp")
+
     #   --Setting workspace and author--
     arcpy.env.workspace = r"C:\Temp\\"
-    mxd.author = "Amy Wootton"
+    mxd.author = ParmCredits
 
     #   --List data frames--
     df = arcpy.mapping.ListDataFrames(mxd,"Layers")[0]
 
+    #	--Removing all layers to create a blank starting point--
     for df in arcpy.mapping.ListDataFrames(mxd):
     		for lyr in arcpy.mapping.ListLayers(mxd, "", df):
            		arcpy.mapping.RemoveLayer(df, lyr)
@@ -68,9 +75,8 @@ try:
     	BaseMap = "None"
     else:
         BaseMap = "None"
-        pythonaddins.MessageBox("No base map has been selected", "Welcome to Map Design Tool", 0)
     
-    #   --Adding in basemap from root folder--
+    #   --Adding in basemap from root folder of the tool--
     if BaseMap == "None":
     	arcpy.AddMessage("No Base Map Selected...")
     else:
@@ -79,11 +85,11 @@ try:
     	addBase = arcpy.mapping.Layer(path_to_layer)
     	arcpy.mapping.AddLayer(df, addBase, "BOTTOM")
 
-    #   --Save layer into root folder--
+    #   --Save layer into root folder of the tool--
     saved_Layer = os.path.join(os.path.dirname(os.path.abspath(__file__)), ParmSaveLayerName)
 
     #   --Define types of projections--
-    if ParmProjection == "Antartica":
+    if ParmProjection == "Antarctica":
         WKID = 4636
     elif ParmProjection == "Asia & Middle East":
         WKID = 4667
@@ -120,16 +126,15 @@ try:
     sr.create()
     env.outputCoordinateSystem = sr
 
-    #   --Setting variables--
+    #   --Setting variables for making the XY event layer--
     in_Table = ParmInTxt
     x_coords = "Long(x)"
     y_coords = "Lat(y)"
     z_coords = ""
     out_Layer = ParmPointsName
 
-    #   --Make the XY event layer--
+    #   --Make the XY event layer using predefined variables--
     arcpy.MakeXYEventLayer_management(in_Table, x_coords, y_coords, out_Layer,sr, z_coords)
-
 
 	#   --Save layer and add saved layer to current map--
     arcpy.SaveToLayerFile_management(out_Layer,saved_Layer)
@@ -151,67 +156,57 @@ try:
     elemCredits = arcpy.mapping.ListLayoutElements(mxd, "TEXT_ELEMENT", "credits")[0]
     elemCredits.text = "Credits: " + ParmCredits + "  Date: %s/%s/%s" % (i.day, i.month, i.year)
 
-    #	--Getting last row name in csv--
-    featureclass = addPoints
-    field_names = [f.name for f in arcpy.ListFields(featureclass)]
-    count = len(field_names)
-    QuantifyName = field_names[count - 2]
-    arcpy.AddMessage(QuantifyName) 
-
-    # Set layer that output symbology will be based on
-    path_to_Polysymbologylayer = os.path.join(os.path.dirname(os.path.abspath(__file__)), "Symbology_Layer_Polygon.lyr")
-    symbologyPolygonLayer = arcpy.mapping.Layer(path_to_Polysymbologylayer)
-    path_to_Pointsymbologylayer = os.path.join(os.path.dirname(os.path.abspath(__file__)), "Symbology_Layer_Point.lyr")
-    symbologyPointLayer = arcpy.mapping.Layer(path_to_Pointsymbologylayer)
-    #	--Setting symbology for raster layers--
-    path_to_Rastersymbologylayer = os.path.join(os.path.dirname(os.path.abspath(__file__)), "Symbology_Layer_Raster.lyr")
-    symbologyRasterLayer = arcpy.mapping.Layer(path_to_Rastersymbologylayer)
-
     #	--Interpolation--
-
     if ParmInterpolation == "Yes":
-    	# Check out any necessary licenses
+    	#	--Getting last row name in csv, in order to use for interpolation--
+    	featureclass = addPoints
+    	field_names = [f.name for f in arcpy.ListFields(featureclass)]
+    	count = len(field_names)
+    	QuantifyName = field_names[count - 2]
+    	arcpy.AddMessage("Field that is being interpolated: " + QuantifyName)
+    	
+    	#	--Check if license required is installed--
     	arcpy.CheckOutExtension("Spatial")
-    	#Set local variables
+
+    	#	--Set local variables for interpolation--
     	inPointFeatures = addPoints
     	zField = QuantifyName
     	power = 2
-    	#searchRadius = RadiusVariable(12, 0) # second variable left to default
-    	# Execute IDW
+
+    	#	--Execute IDW Interpolation--
     	outIDW = Idw(inPointFeatures, zField, power=power, search_radius=RadiusVariable(12))
     	arcpy.AddMessage("Calculated IDW")
     	
-    	# Save the output 
-    	outIDW.save("C:/Temp/Int" + ParmPointsName)
+    	#	--Save the output raster of interpolation into a temporary folder--
+    	outIDW.save("C:/Temp/Int" + QuantifyName)
     	arcpy.AddMessage("Saved IDW layer")
-    	newlayer = arcpy.mapping.Layer(r"C:\Temp\Int" + ParmPointsName)
-    	#	--Applying symbology to the layer--
-    	arcpy.ApplySymbologyFromLayer_management (newlayer, symbologyRasterLayer)
+
+    	#	--Adding in the interpolated raster--
+    	newlayer = arcpy.mapping.Layer(r"C:\Temp\Int" + QuantifyName)
     	arcpy.mapping.AddLayer(df,newlayer,"AUTO_ARRANGE")
-    	arcpy.AddMessage("Added in IDW layer")
+    	arcpy.AddMessage("Added in IDW raster layer")
 
-    	for df in arcpy.mapping.ListDataFrames(mxd):
-    		for lyr in arcpy.mapping.ListLayers(mxd, "", df):
-        		if lyr.name == ParmPointsName:
-           			arcpy.mapping.RemoveLayer(df, lyr)
+    	# #	--Remove the csv point layer--
+    	# for df in arcpy.mapping.ListDataFrames(mxd):
+    	# 	for lyr in arcpy.mapping.ListLayers(mxd, "", df):
+     #    		if lyr.name == ParmPointsName:
+     #       			arcpy.mapping.RemoveLayer(df, lyr)
 
+        #	--Adding in additional layers for Interpolation--
         arcpy.AddMessage("Adding in Base Map for Interpolation...")
+        #	--Adding in world city points from root folder of the tool--
     	path_to_citylayer = os.path.join(os.path.dirname(os.path.abspath(__file__)), "Cities.shp")
     	addCityInfo = arcpy.mapping.Layer(path_to_citylayer)
-    	# Apply the symbology from the symbology layer to the input layer
-    	arcpy.ApplySymbologyFromLayer_management (addCityInfo, symbologyPointLayer)
     	arcpy.mapping.AddLayer(df, addCityInfo, "TOP")
-    	addCityInfo.showLabels = True
-
+    	#	--Adding in world country polygons from root folder of the tool--
     	path_to_polylayer = os.path.join(os.path.dirname(os.path.abspath(__file__)), "Countries.shp")
     	addPolyInfo = arcpy.mapping.Layer(path_to_polylayer)
-    	# Apply the symbology from the symbology layer to the input layer
-    	arcpy.ApplySymbologyFromLayer_management (addPolyInfo, symbologyPolygonLayer)
     	arcpy.mapping.AddLayer(df, addPolyInfo, "AUTO_ARRANGE")
 
+    	#	--Updating the Legend to represent all the layers--
     	legend = arcpy.mapping.ListLayoutElements(mxd, "LEGEND_ELEMENT", "Legend")[0]
     	legend.autoAdd = True
-    	legend.adjustColumnCount(4)
+    	legend.adjustColumnCount(2)
 
     elif ParmInterpolation == "No":
     	arcpy.AddMessage("Interpolation not selected")
@@ -220,9 +215,10 @@ try:
 
     #   --Change to Layout view--
     arcpy.mapping.MapDocument("current").activeView = "PAGE_LAYOUT"
-
+    
+    #	--
+    arcpy.AddMessage("Your map has been designed!")
+    arcpy.AddMessage("Thank you for using this tool!")
+    #	--
 except (Exception) as e:
     arcpy.AddMessage('Exception Message' + e.message)
-
-arcpy.AddMessage("Your map has been designed!")
-arcpy.AddMessage("Thank you for using this tool!")
